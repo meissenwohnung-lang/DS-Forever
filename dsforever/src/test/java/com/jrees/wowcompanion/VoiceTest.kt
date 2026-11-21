@@ -55,7 +55,8 @@ class VoiceTest {
         assertEquals("en-US", Voice.language("en"))
         assertEquals("es-ES", Voice.language("es"))
         assertEquals("fr-FR", Voice.language("fr"))
-        assertEquals("en-US", Voice.language("de"))
+        assertEquals("de-DE", Voice.language("de"))      // FORK: German is a listening language now
+        assertEquals("en-US", Voice.language("it"))
     }
 
     // ---------------------------------------------------------------- the text

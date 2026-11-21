@@ -34,7 +34,7 @@ class WhisperEngine(context: Context,
 
     override fun start(online: Boolean, lang: String, hints: List<String>, sink: VoiceEngine.Sink): Boolean {
         cancel()
-        val pick = Voice.whisperModel(Tr.lang(), on()) ?: return false
+        val pick = Voice.whisperModel(Voice.appLang(), on()) ?: return false
         if (!VoiceMic.granted(app)) { ui.post { sink.error(Voice.E_PERMISSIONS) }; return true }
         val s = ++session
         stopAsked = false
@@ -52,7 +52,7 @@ class WhisperEngine(context: Context,
     /** ptt-speed: the model starts loading at the push-to-talk press (the hold starts [HoldTalk.HOLD_MS] later), so a cold load
      *  overlaps the hold and the talking; nothing is recorded */
     fun preload() {
-        val pick = Voice.whisperModel(Tr.lang(), on()) ?: return
+        val pick = Voice.whisperModel(Voice.appLang(), on()) ?: return
         if (held) warmMs = PTT_IDLE_MS
         work.execute { runCatching { loaded(pick.first) } }
     }
@@ -178,7 +178,8 @@ class WhisperEngine(context: Context,
         /** offline voice's state now: the library and which model files are ready */
         fun on(): Voice.WhisperOn = Voice.WhisperOn(WhisperNative.available,
             VoiceModels.ready(VoiceModels.Model.EN), VoiceModels.ready(VoiceModels.Model.MULTI),
-            VoiceModels.ready(VoiceModels.Model.EN_SMALL), VoiceModels.ready(VoiceModels.Model.MULTI_SMALL))
+            VoiceModels.ready(VoiceModels.Model.EN_SMALL), VoiceModels.ready(VoiceModels.Model.MULTI_SMALL),
+            VoiceModels.ready(VoiceModels.Model.MULTI_LARGE))
 
         // ---- THE LOADED MODEL (one, shared by every board; only the work thread loads, runs and frees it)
         private val lock = Any()

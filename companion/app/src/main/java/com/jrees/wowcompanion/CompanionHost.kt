@@ -2102,14 +2102,14 @@ class CompanionHost(base: Context, private val shell: HostShell) : ContextWrappe
         talkTabs.seed(chatView.talkTabs(), chatView.talkStart())
         // the Hub held the chat guest in the router's click (hub7); asked again here if it is not ours yet
         if (capHolder != "pad:chat") guestTap(GuestPad.cells(questsPad, "chat", hold = true))
-        if (Voice.whisperModel(Tr.lang(), WhisperEngine.on()) == null) { talkNoVoice = true; talkAct(holdTalk.noVoice(now, HoldTalk.NO_VOICE), "no voice model"); return }
+        if (Voice.whisperModel(Voice.appLang(), WhisperEngine.on()) == null) { talkNoVoice = true; talkAct(holdTalk.noVoice(now, HoldTalk.NO_VOICE), "no voice model"); return }
         if (!VoiceMic.granted(this)) { talkNoVoice = true; talkAct(holdTalk.noVoice(now, HoldTalk.MIC_OFF), "no microphone"); return }
         talkLevel = 0f
         Log.i("WCHOME", "hold to talk: listening (${talkTabs.now()?.key})")
-        val started = talkEngine.start(false, Tr.lang(), chatView.voiceNames(), object : VoiceEngine.Sink {
+        val started = talkEngine.start(false, Voice.appLang(), chatView.voiceNames(), object : VoiceEngine.Sink {
             override fun rms(db: Float) { talkLevel = HoldTalk.level(db); if (holdTalk.listening) talkDraw() }
             override fun partial(text: String) {}
-            override fun final(text: String) = talkAct(holdTalk.heard(SystemClock.uptimeMillis(), text), "words")
+            override fun final(text: String) = talkAct(holdTalk.heard(SystemClock.uptimeMillis(), Voice.heard(text)), "words")
             override fun error(code: Int) = talkAct(holdTalk.failed(SystemClock.uptimeMillis(), HoldTalk.problem(code)), "voice error $code")
         })
         if (!started) { talkNoVoice = true; talkAct(holdTalk.noVoice(now, HoldTalk.NO_VOICE), "no voice model") }

@@ -56,6 +56,20 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
     private val places = ArrayList<Triple<Int, Int, RectF>>()   // row, col, rect: the keys as last drawn
     private val fill = Paint().apply { style = Paint.Style.FILL }
 
+    /**
+     * FORK: the suggestion strip over the keys (Settings > General > Voice typing > Suggestions): only a board that writes a message opts
+     * in (the chat's); the strip takes [STRIP_H] from the keys' height, a finger on a word or A on it takes the word
+     */
+    var suggestOn = false
+        set(v) {
+            if (field == v) return
+            field = v
+            keys.suggester = if (v) ({ t: String -> Suggest.forText(t) }) else null
+            requestLayout(); invalidate()
+        }
+    private val stripPlaces = ArrayList<Pair<Int, RectF>>()
+    private fun stripExtra() = if (suggestOn) STRIP_H + GAP else 0f
+
     /** the keyboard opens: the cursor on the first letter, shift off */
     fun open() { keys.open(); invalidate() }
 
@@ -115,7 +129,7 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
     // UI Art's geometry (KeyboardSample.kt on art-kit 8e9a6676): a solid kit menu panel 6 px in from the sides and
     // 4 px over the bottom; inside it 16 px, rows of 92 px keys 8 px apart, ten units across; the hints under the keys
     override fun onMeasure(wSpec: Int, hSpec: Int) {
-        setMeasuredDimension(MeasureSpec.getSize(wSpec), resolveSize(fullHeight(), hSpec))
+        setMeasuredDimension(MeasureSpec.getSize(wSpec), resolveSize(fullHeight() + stripExtra().toInt(), hSpec))
     }
 
     private val board = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -124,19 +138,20 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
         c.drawColor(Theme.ink)
         // drawn at the FULL height even while the room gives it less: sliding in, its top edge carries the keys up
         // from below (the room clips the rest), so the board slides and is never squeezed
-        val kb = RectF(6f, 0f, width - 6f, (if (fillHeight > 0) fillHeight else fullHeight()) - 4f)
+        val kb = RectF(6f, 0f, width - 6f, (if (fillHeight > 0) fillHeight else fullHeight() + stripExtra().toInt()) - 4f)
         // look 1, the user's pick: the keys on a black board with a thin bronze-brown edge (UI Art's sample)
         board.style = Paint.Style.FILL; board.color = Color.rgb(6, 6, 6)
         c.drawRoundRect(kb, 14f, 14f, board)
         board.style = Paint.Style.STROKE; board.strokeWidth = 2f; board.color = Color.rgb(60, 52, 40)
         c.drawRoundRect(kb, 14f, 14f, board)
-        places.clear()
+        places.clear(); stripPlaces.clear()
         sheet?.let { drawVoice(c, kb, it); return }
         val rows = keys.layoutRows()
         val unit = (kb.width() - INSET * 2 - 9 * GAP) / 10f
         // the keys as tall as the board allows (the input screen fills the room: ~120 px keys), never shorter than KEY_H
-        val keyH = maxOf(KEY_H, (kb.height() - INSET * 2 - (rows.size - 1) * GAP) / rows.size)
+        val keyH = maxOf(KEY_H, (kb.height() - INSET * 2 - stripExtra() - (rows.size - 1) * GAP) / rows.size)
         var y = kb.top + INSET
+        if (suggestOn) { drawStrip(c, kb, unit, y); y += stripExtra() }
         for ((ri, row) in rows.withIndex()) {
             var x = kb.left + INSET + row.lead * (unit + GAP)          // the A-L row half a key in
             for ((ci, cell) in row.cells.withIndex()) {
@@ -153,6 +168,23 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
         // what the controller does here, the game's way: glyph and word, under the keys
         // NO glyph legend under the keys (the user, LATER 27: "the button glyph legend at the bottom of the keyboard is redundant
         // and should be removed"): the keys that have a button carry its glyph themselves
+    }
+
+    /**
+     * FORK: the strip's words (the three the list offers for the text, one per third of the width; the cursor's gold box on the one the
+     * controller is on). Nothing to offer = an empty strip, the keys keep their place.
+     */
+    private fun drawStrip(c: Canvas, kb: RectF, unit: Float, top: Float) {
+        val words = keys.suggestionsFor(text())
+        val total = kb.width() - INSET * 2
+        val slot = (total - 2 * GAP) / ChatKeys.STRIP_SLOTS
+        for ((i, w) in words.withIndex()) {
+            val x = kb.left + INSET + i * (slot + GAP)
+            val r = RectF(x, top, x + slot, top + STRIP_H)
+            UiKit.keyCap(c, r, w, LOOK, mod = true)
+            stripPlaces += i to r
+            if (keys.onStrip && keys.stripCol == i) UiKit.focus(c, r)
+        }
     }
 
     /** the pressed key's bubble over it (see [popFor]), inside the board [kb] */
@@ -217,6 +249,10 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
     override fun onTouchEvent(e: MotionEvent): Boolean {
         if (sheet != null) { voiceTouch(e); return true }
         val at = places.firstOrNull { it.third.contains(e.x, e.y) }
+        // FORK: a finger lifted on a strip word takes it
+        if (e.actionMasked == MotionEvent.ACTION_UP) stripPlaces.firstOrNull { it.second.contains(e.x, e.y) }?.let { (i, _) ->
+            apply(keys.pickSuggestion(i, text())); return true
+        }
         when (e.actionMasked) {
             // the finger's key pops up while held, follows the finger across the keys, and types on the lift (as before)
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
@@ -305,7 +341,7 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
         }
         override fun start(online: Boolean, lang: String, hints: List<String>, sink: VoiceEngine.Sink): Boolean {
             cur?.cancel()
-            val pick: VoiceListen = if (sheet?.offline == true && Voice.whisperModel(Tr.lang(), WhisperEngine.on()) != null) w else android()
+            val pick: VoiceListen = if (sheet?.offline == true && Voice.whisperModel(Voice.appLang(), WhisperEngine.on()) != null) w else android()
             cur = pick
             return pick.start(online, lang, hints, sink)
         }
@@ -365,8 +401,8 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
 
     private val sink = object : VoiceEngine.Sink {
         override fun rms(db: Float) { sheet?.rms(db) }
-        override fun partial(text: String) { sheet?.let { run(it.partial(text)) } }
-        override fun final(text: String) { sheet?.let { s -> run(s.final(text)); DiagLog.event("voice", s.logLine("final")) } }
+        override fun partial(text: String) { sheet?.let { run(it.partial(Voice.heard(text))) } }
+        override fun final(text: String) { sheet?.let { s -> run(s.final(Voice.heard(text))); DiagLog.event("voice", s.logLine("final")) } }
         override fun error(code: Int) { sheet?.let { s -> run(s.error(code)); DiagLog.event("voice", s.logLine("error $code")) } }
         override fun working() { sheet?.let { s -> s.working(); ticking(); invalidate(); onVoice() } }
     }
@@ -388,7 +424,7 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
             val s = sheet ?: break
             when (a) {
                 is Voice.Act.Start -> {
-                    val lang = Voice.language(Tr.lang())
+                    val lang = Voice.language(Voice.appLang())
                     val hints = if (a.online) emptyList() else runCatching { Voice.hints() }.getOrDefault(emptyList())
                     if (!listen().start(a.online, lang, hints, sink)) { run(s.error(Voice.E_BUSY)); return }
                     DiagLog.event("voice", s.logLine("listen"))
@@ -411,7 +447,7 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
                 }
                 Voice.Act.AskMic -> askMic(s)
                 Voice.Act.UseOnline -> { Settings.voiceTyping = Voice.Mode.ONLINE; DiagLog.event("voice", "online voice picked") }
-                Voice.Act.GetPack -> { val ok = listen().getPack(Voice.language(Tr.lang())); DiagLog.event("voice", "pack download asked ok=$ok") }
+                Voice.Act.GetPack -> { val ok = listen().getPack(Voice.language(Voice.appLang())); DiagLog.event("voice", "pack download asked ok=$ok") }
                 is Voice.Act.GetModel -> getModel(s, a.model)
                 Voice.Act.Pass, Voice.Act.Glow -> {}
             }
@@ -428,7 +464,7 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
     // (unless the sheet has closed)
     private var modelWatch: (() -> Unit)? = null
     /** where the list's cursor starts: the small one of the kind the app's language wants */
-    private fun sheetModel(): VoiceModels.Model = Voice.wantedModel(Tr.lang())
+    private fun sheetModel(): VoiceModels.Model = Voice.wantedModel(Voice.appLang())
     /** the files downloading or being checked now (Settings > Add-ons' too) */
     private fun busyModels(): Set<VoiceModels.Model> = VoiceModels.Model.values().filterTo(HashSet()) { m ->
         modelState(m).let { it is VoiceModels.State.Downloading || it == VoiceModels.State.Checking }
@@ -833,6 +869,8 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
         const val KEY_H = 92f
         const val GAP = 8f
         const val INSET = 16f
+        /** FORK: the suggestion strip's height (the keys give it up when it is on) */
+        const val STRIP_H = 72f
         /** the key pop-up: how long A's shows (a finger's shows while held) */
         const val POP_SHOW_MS = 160L
         /** one ripple's way out from the medallion */

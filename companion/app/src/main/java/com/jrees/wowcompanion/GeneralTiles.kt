@@ -280,12 +280,20 @@ class GeneralTilesView(context: Context, private val host: SettingsView, val gro
     /** one line of a band: [words] choices (the chosen one [chosen], -1 = none lit), labelled when [label] is set */
     private class BandLine(val key: String, val label: String?, val words: List<String>, val chosen: Int, val action: Boolean = false)
 
+    private val KEY_SUGGEST = listOf("off" to "Off", "de" to "Deutsch")
+    private val VOICE_LANGS = listOf("auto" to "Auto", "de" to "Deutsch", "en" to "English")
+
     private fun lines(id: String): List<BandLine> = when (id) {
         GeneralTiles.SWAP -> listOfNotNull(
             BandLine("swap", null, listOf("On", "Off"), if (Settings.swapScreens) 0 else 1),
             // no dead stops: the Restart line only while a restart can apply the choice now
             if (swapPending() == ScreenSwap.Pending.RESTART) BandLine("restart", null, listOf("Restart DS Forever"), -1, action = true) else null)
-        GeneralTiles.VOICE -> listOf(BandLine("voice", null, Voice.Mode.values().map { it.label }, Settings.voiceTyping.ordinal))
+        GeneralTiles.VOICE -> listOf(
+            BandLine("voice", null, Voice.Mode.values().map { it.label }, Settings.voiceTyping.ordinal),
+            // FORK: the language voice listens in (Auto = the app's language)
+            BandLine("voicelang", null, VOICE_LANGS.map { it.second }, VOICE_LANGS.indexOfFirst { it.first == Settings.voiceLang }.coerceAtLeast(0)),
+            // FORK: the chat keyboard's word suggestions (a strip over the keys)
+            BandLine("keysuggest", null, KEY_SUGGEST.map { it.second }, KEY_SUGGEST.indexOfFirst { it.first == Settings.keySuggest }.coerceAtLeast(0)))
         else -> emptyList()
     }
 
@@ -471,6 +479,14 @@ class GeneralTilesView(context: Context, private val host: SettingsView, val gro
             line.key == "voice" -> {
                 Settings.voiceTyping = Voice.Mode.values()[k]
                 DiagLog.event("voice", "Voice typing set ${Settings.voiceTyping.key}")
+            }
+            line.key == "keysuggest" -> {
+                Settings.keySuggest = KEY_SUGGEST[k].first
+                DiagLog.event("keyboard", "Suggestions set ${Settings.keySuggest}")
+            }
+            line.key == "voicelang" -> {
+                Settings.voiceLang = VOICE_LANGS[k].first
+                DiagLog.event("voice", "Voice language set ${Settings.voiceLang}")
             }
         }
     }

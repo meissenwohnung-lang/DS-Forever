@@ -28,7 +28,35 @@ object Voice {
     fun showsMic(mode: Mode, hasMic: Boolean): Boolean = mode != Mode.OFF && hasMic
 
     /** the recognizer's language: Settings > Language's (the app's language in use) */
-    fun language(lang: String): String = when (lang) { "es" -> "es-ES"; "fr" -> "fr-FR"; else -> "en-US" }
+    fun language(lang: String): String = when (lang) { "es" -> "es-ES"; "fr" -> "fr-FR"; "de" -> "de-DE"; else -> "en-US" }
+
+    /**
+     * FORK: the language the voice listens in. [setting] is Settings.voiceLang ("auto" = follow the app's language [appLang];
+     * "de" / "en" = that language whatever the app shows). Pure, so the choice is testable without Android.
+     */
+    fun speechLang(setting: String?, appLang: String): String = when (setting) { "de" -> "de"; "en" -> "en"; else -> appLang }
+
+    /** FORK: the language voice listens in now (the voice-language setting over the app's language) */
+    fun appLang(): String = speechLang(Settings.voiceLang, Tr.lang())
+
+    /** FORK: what a recognizer heard, ready for the box: German umlauts written as ae/oe/ue when listening in German, else untouched */
+    fun heard(s: String): String = if (appLang() == "de") umlauts(s) else s
+
+    /**
+     * FORK: German as chat can carry it. Chat takes printable ASCII only ([clean]), so the umlauts are written the German way
+     * (ae, oe, ue; the sharp s is "ss" in [fold]) instead of losing the dots ("fuer" is better than "fur"). Only used when the listening
+     * language is German; every other language is left exactly as it was.
+     */
+    fun umlauts(s: String): String {
+        if (s.none { it in "\u00E4\u00F6\u00FC\u00C4\u00D6\u00DC" }) return s
+        val sb = StringBuilder(s.length + 4)
+        for (ch in s) when (ch) {
+            '\u00E4' -> sb.append("ae"); '\u00F6' -> sb.append("oe"); '\u00FC' -> sb.append("ue")
+            '\u00C4' -> sb.append("Ae"); '\u00D6' -> sb.append("Oe"); '\u00DC' -> sb.append("Ue")
+            else -> sb.append(ch)
+        }
+        return sb.toString()
+    }
 
     // ---------------------------------------------------------------- the text
 
@@ -185,7 +213,8 @@ object Voice {
      * has libdsfwhisper.so, [en] / [multi] = that model file is on disk and checked ([VoiceModels.ready]); [enSmall] / [multiSmall] = the
      * quantised one of that kind (the user's pick 2026-11-16 "Offer both")
      */
-    data class WhisperOn(val lib: Boolean, val en: Boolean, val multi: Boolean, val enSmall: Boolean = false, val multiSmall: Boolean = false)
+    data class WhisperOn(val lib: Boolean, val en: Boolean, val multi: Boolean, val enSmall: Boolean = false, val multiSmall: Boolean = false,
+                          val multiLarge: Boolean = false)
 
     /**
      * Which model and language offline voice uses for the app's language [appLang] ("en", "es", "fr"): a language that is not English
@@ -196,7 +225,8 @@ object Voice {
         if (w == null || !w.lib) return null
         val lang = langOf(appLang)
         val en = if (w.en) VoiceModels.Model.EN else if (w.enSmall) VoiceModels.Model.EN_SMALL else null
-        val multi = if (w.multi) VoiceModels.Model.MULTI else if (w.multiSmall) VoiceModels.Model.MULTI_SMALL else null
+        val multi = if (w.multiLarge) VoiceModels.Model.MULTI_LARGE else if (w.multi) VoiceModels.Model.MULTI
+            else if (w.multiSmall) VoiceModels.Model.MULTI_SMALL else null
         return when {
             lang != "en" && multi != null -> multi to lang
             en != null -> en to "en"

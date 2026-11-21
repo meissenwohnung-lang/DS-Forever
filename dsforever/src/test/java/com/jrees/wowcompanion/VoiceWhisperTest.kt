@@ -283,9 +283,9 @@ class VoiceWhisperTest {
 
     /** the user, 2026-11-16: "The voice menu should have all of the options not just the 60 mb" - the sheet lists the four, as Add-ons */
     @Test fun needModelListsAllFourInAddonsOrder() {
-        assertEquals(listOf("English · 60 MB", "English · 148 MB", "Other languages · 60 MB", "Other languages · 148 MB"),
-            Model.values().map { it.choice })
-        assertEquals(listOf(Model.EN_SMALL, Model.EN, Model.MULTI_SMALL, Model.MULTI), Model.values().toList())
+        assertEquals(listOf("English · 60 MB", "English · 148 MB", "Other languages · 60 MB", "Other languages · 148 MB",
+            "Other languages (best) · 575 MB"), Model.values().map { it.choice })
+        assertEquals(listOf(Model.EN_SMALL, Model.EN, Model.MULTI_SMALL, Model.MULTI, Model.MULTI_LARGE), Model.values().toList())
         val s = sheet()
         s.model = Voice.wantedModel("en")
         s.open(Perm.GRANTED, Avail.NEED_MODEL)
@@ -296,17 +296,26 @@ class VoiceWhisperTest {
         assertEquals(Model.EN, s.model)
         assertEquals(listOf<Act>(Act.GetModel(Model.EN)), s.press("PAD1", fight = false))
         repeat(5) { s.press("PADDDOWN", fight = false) }
-        assertEquals(Model.MULTI, s.model)
+        assertEquals(Model.MULTI_LARGE, s.model)
         s.press("PADDUP", fight = false)
-        assertEquals(listOf<Act>(Act.GetModel(Model.MULTI_SMALL)), s.press("PAD1", fight = false))
+        assertEquals(listOf<Act>(Act.GetModel(Model.MULTI)), s.press("PAD1", fight = false))
         // one downloading: A on it waits, the others can still be picked
-        s.busy = setOf(Model.MULTI_SMALL)
+        s.busy = setOf(Model.MULTI)
         assertEquals(listOf<Act>(Act.Glow), s.press("PAD1", fight = false))
         s.press("PADDUP", fight = false)
         assertFalse(s.downloading)
-        assertEquals(listOf<Act>(Act.GetModel(Model.EN)), s.press("PAD1", fight = false))
+        assertEquals(listOf<Act>(Act.GetModel(Model.MULTI_SMALL)), s.press("PAD1", fight = false))
         // B goes back to the box
         assertEquals(listOf<Act>(Act.Close), s.press("PAD2", fight = false))
+    }
+
+    /** FORK: the large file listens for a language that is not English when it is in (German), else the other multilingual ones as before */
+    @Test fun largeModelListensForGermanWhenReady() {
+        val large = WhisperOn(lib = true, en = false, multi = false, multiLarge = true)
+        assertEquals(Model.MULTI_LARGE to "de", Voice.whisperModel("de", large))
+        assertEquals(Model.MULTI_LARGE to "de", Voice.whisperModel("de", WhisperOn(lib = true, en = true, multi = true, multiSmall = true, multiLarge = true)))
+        assertEquals(Model.MULTI to "de", Voice.whisperModel("de", WhisperOn(lib = true, en = false, multi = true, multiSmall = true)))
+        assertEquals(null, Voice.whisperModel("de", WhisperOn(lib = false, en = false, multi = false, multiLarge = true)))
     }
 
     @Test fun needModelListStartsWhereTheOldRuleDid() {

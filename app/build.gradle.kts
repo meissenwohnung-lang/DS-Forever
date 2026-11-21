@@ -49,7 +49,8 @@ android {
 
     defaultConfig {
         // DS Forever (S5, the user 2026-10-08: "(a) Become 'DS Forever'"): THE one app, installed over the old DS Forever app
-        applicationId = "app.dsforever.companion"
+        // FORK: -PdsfAppId=<id> installs this build next to the original instead of over it (default = unchanged)
+        applicationId = (findProperty("dsfAppId") as String?)?.takeIf { it.isNotBlank() } ?: "app.dsforever.companion"
 
         minSdk = 26
 
@@ -57,12 +58,17 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
 
         versionCode = 1506
-        versionName = "1.0.37"
+        // FORK: with -PdsfAppId the build is marked "-fork.N" (version line) and "DS Forever (Fork)" (launcher label); default = unchanged
+        val dsfFork = !(findProperty("dsfAppId") as String?).isNullOrBlank()
+        versionName = "1.0.37" + if (dsfFork) "-fork.1" else ""
+        manifestPlaceholders["appLabel"] = if (dsfFork) "DS Forever (Fork)" else "@string/app_name"
 
         buildConfigField("boolean", "GOLD", "false")
         // DS Forever's self-update (Track C, the user's rulings 2026-10-12): the PUBLIC release repo "owner/repo" whose latest GitHub
         // release carries DS-Forever-<version>.apk. Empty = no repo yet: the update check says so and does nothing. No token, ever.
-        buildConfigField("String", "DSF_RELEASE_REPO", "\"Jreese702/DS-Forever\"")
+        // FORK: -PdsfReleaseRepo=<owner/repo> (or "none" = no update check) overrides the release repo (default = unchanged)
+        val dsfReleaseRepo = (findProperty("dsfReleaseRepo") as String?)?.takeIf { it.isNotBlank() }?.let { if (it == "none") "" else it } ?: "Jreese702/DS-Forever"
+        buildConfigField("String", "DSF_RELEASE_REPO", "\"$dsfReleaseRepo\"")
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(

@@ -238,6 +238,16 @@ object Settings {
         get() = Voice.Mode.of(prefs?.getString("voiceTyping", null))
         set(v) { if (v != voiceTyping) { prefs?.edit()?.putString("voiceTyping", v.key)?.apply(); changed() } }
 
+    /** FORK: the language Voice typing listens in: "auto" (the default: the app's language), "de" or "en". App-wide. */
+    /** FORK: the chat keyboard's word suggestions: "de" = German list, anything else = off (the default: the keyboard as before) */
+    var keySuggest: String
+        get() = prefs?.getString("keySuggest", null)?.takeIf { it == "de" } ?: "off"
+        set(v) { val k = if (v == "de") "de" else "off"; if (k != keySuggest) { prefs?.edit()?.putString("keySuggest", k)?.apply(); changed() } }
+
+    var voiceLang: String
+        get() = prefs?.getString("voiceLang", null)?.takeIf { it == "de" || it == "en" } ?: "auto"
+        set(v) { val k = if (v == "de" || v == "en") v else "auto"; if (k != voiceLang) { prefs?.edit()?.putString("voiceLang", k)?.apply(); changed() } }
+
     /**
      * WINDOWS ID (the user, 2026-11-14: "build it"; the BLZ51914400 wave): which Windows machine identity the game's container shows,
      * from the next game start - "per_install" (the default, 1.0.25's own identity per install) or "original" (v2.3.3's shared prebuilt
