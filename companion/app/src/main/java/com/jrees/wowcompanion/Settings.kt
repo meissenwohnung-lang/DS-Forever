@@ -290,6 +290,11 @@ object Settings {
         get() = Voice.Mode.of(prefs?.getString("voiceTyping", null))
         set(v) { if (v != voiceTyping) { prefs?.edit()?.putString("voiceTyping", v.key)?.apply(); changed() } }
 
+    /** FORK: the chat keyboard's word suggestions: "de" = German list, anything else = off (the default: the keyboard as before) */
+    var keySuggest: String
+        get() = prefs?.getString("keySuggest", null)?.takeIf { it == "de" } ?: "off"
+        set(v) { val k = if (v == "de") "de" else "off"; if (k != keySuggest) { prefs?.edit()?.putString("keySuggest", k)?.apply(); changed() } }
+
     /**
      * VOICE LANGUAGE (issue #477: "let me pick the speech language (Russian), independent of the app language"): what voice typing
      * listens for - "app" (Same as the app, the default), "auto" (Auto-detect) or one of Whisper's language codes ([VoiceLanguage]).

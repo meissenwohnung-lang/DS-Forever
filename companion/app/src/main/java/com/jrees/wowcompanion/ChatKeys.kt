@@ -100,6 +100,20 @@ class ChatKeys(private val layout: Layout = Layout.DEFAULT, private val pipe: Bo
     var col = 0; private set
     var shift = Shift.OFF; private set
 
+    /**
+     * FORK: the suggestion strip above the keys (optional; [suggester] null = no strip, every press as before). D-pad up from the top row
+     * enters the strip when it has words, left / right move along it, A takes the word (it replaces the word being typed and adds a
+     * blank), down returns to the digit row; Y, LT, RT, Start and B work as ever.
+     */
+    var suggester: ((String) -> List<String>)? = null
+    /** the cursor is on the strip */
+    var onStrip = false; private set
+    /** the strip's cursor */
+    var stripCol = 0; private set
+
+    /** the words the strip offers for [text] now (empty = no strip content) */
+    fun suggestionsFor(text: String): List<String> = suggester?.invoke(text).orEmpty()
+
     private val rows get() = layout.pages[page]
 
     /** the rows of the page shown now */
@@ -127,7 +141,35 @@ class ChatKeys(private val layout: Layout = Layout.DEFAULT, private val pipe: Bo
     /** the character a letter key types now (shift applied) */
     fun charOf(k: Key.Ch): Char = if (shift != Shift.OFF && k.c.isLetter()) k.c.uppercaseChar() else k.c
 
-    fun press(button: String, text: String): Act = when (button) {
+    fun press(button: String, text: String): Act {
+        val words = suggestionsFor(text)
+        if (words.isEmpty()) onStrip = false
+        if (onStrip) {
+            stripCol = stripCol.coerceIn(0, words.size - 1)
+            when (button) {
+                "PADDLEFT" -> { stripCol = (stripCol - 1 + words.size) % words.size; return Act.Glow }
+                "PADDRIGHT" -> { stripCol = (stripCol + 1) % words.size; return Act.Glow }
+                "PADDUP" -> return Act.Glow
+                "PADDDOWN" -> { onStrip = false; col = nearest(row, (stripCol + 0.5f) / STRIP_SLOTS); return Act.Glow }
+                "PAD1" -> return pickSuggestion(stripCol, text)
+            }
+        } else if (button == "PADDUP" && row == 0 && words.isNotEmpty()) {
+            onStrip = true
+            stripCol = (centreOf(row, col) * STRIP_SLOTS).toInt().coerceIn(0, words.size - 1)
+            return Act.Glow
+        }
+        return pressKeys(button, text)
+    }
+
+    /** a strip word taken (A on it, or a finger): the text with it in place of the word being typed; refused when it would not fit */
+    fun pickSuggestion(i: Int, text: String): Act {
+        val w = suggestionsFor(text).getOrNull(i) ?: return Act.Glow
+        val t = Suggest.apply(text, w, MAX) ?: return Act.Refused
+        onStrip = false
+        return Act.Text(t)
+    }
+
+    private fun pressKeys(button: String, text: String): Act = when (button) {
         "PADDUP" -> { moveRow(-1); Act.Glow }
         "PADDDOWN" -> { moveRow(1); Act.Glow }
         "PADDLEFT" -> { col = (col - 1 + rows[row].size) % rows[row].size; Act.Glow }     // rows wrap (the SPEC)
@@ -156,7 +198,7 @@ class ChatKeys(private val layout: Layout = Layout.DEFAULT, private val pipe: Bo
     /** a finger on a key: the cursor goes there too, then the key is pressed */
     fun touch(r: Int, c: Int, text: String): Act {
         if (r !in rows.indices || c !in rows[r].indices) return Act.Glow
-        row = r; col = c
+        row = r; col = c; onStrip = false
         return pressKey(key, text)
     }
 
@@ -187,5 +229,7 @@ class ChatKeys(private val layout: Layout = Layout.DEFAULT, private val pipe: Bo
     companion object {
         /** the game's own limit on one chat message */
         const val MAX = 255
+        /** the strip is cut in this many equal slots, one word each */
+        const val STRIP_SLOTS = Suggest.MAX
     }
 }

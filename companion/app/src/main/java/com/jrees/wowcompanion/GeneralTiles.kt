@@ -299,6 +299,8 @@ class GeneralTilesView(context: Context, private val host: SettingsView, val gro
     private class BandLine(val key: String, val label: String?, val words: List<String>, val chosen: Int, val action: Boolean = false,
                            val value: String? = null, val stepper: Boolean = false)
 
+    private val KEY_SUGGEST = listOf("off" to "Off", "de" to "Deutsch")
+
     private fun lines(id: String): List<BandLine> = when (id) {
         GeneralTiles.SWAP -> listOfNotNull(
             BandLine("swap", null, listOf("On", "Off"), if (Settings.swapScreens) 0 else 1),
@@ -307,7 +309,9 @@ class GeneralTilesView(context: Context, private val host: SettingsView, val gro
         GeneralTiles.VOICE -> listOfNotNull(BandLine("voice", null, Voice.Mode.values().map { it.label }, Settings.voiceTyping.ordinal),
             // #477: the Voice language (Same as the app, Auto-detect, Whisper's languages): a stepper, while voice typing is on
             if (Settings.voiceTyping != Voice.Mode.OFF) BandLine(GeneralTiles.VOICE_LANG, "Voice language", GeneralTiles.VOICE_LANG_STEPS, -1,
-                value = VoiceLanguage.label(Settings.voiceLanguage, Tr.lang()), stepper = true) else null)
+                value = VoiceLanguage.label(Settings.voiceLanguage, Tr.lang()), stepper = true) else null,
+            // FORK: the chat keyboard's word suggestions (a strip over the keys)
+            BandLine("keysuggest", null, KEY_SUGGEST.map { it.second }, KEY_SUGGEST.indexOfFirst { it.first == Settings.keySuggest }.coerceAtLeast(0)))
         else -> emptyList()
     }
 
@@ -504,6 +508,10 @@ class GeneralTilesView(context: Context, private val host: SettingsView, val gro
             line.key == "voice" -> {
                 Settings.voiceTyping = Voice.Mode.values()[k]
                 DiagLog.event("voice", "Voice typing set ${Settings.voiceTyping.key}")
+            }
+            line.key == "keysuggest" -> {
+                Settings.keySuggest = KEY_SUGGEST[k].first
+                DiagLog.event("keyboard", "Suggestions set ${Settings.keySuggest}")
             }
             line.key == GeneralTiles.VOICE_LANG -> {
                 Settings.voiceLanguage = VoiceLanguage.step(Settings.voiceLanguage, if (k == 0) -1 else 1)

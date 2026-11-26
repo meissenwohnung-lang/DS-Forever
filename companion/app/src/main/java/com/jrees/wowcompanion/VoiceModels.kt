@@ -29,7 +29,7 @@ object VoiceModels {
      * about 60 MB against 148, a little less exact. The rows' order: English small, English, other languages small, other languages.
      */
     enum class Model(val id: String, val file: String, val url: String, val bytes: Long, val sha256: String, val title: String,
-                     val what: String, val multi: Boolean, val small: Boolean) {
+                     val what: String, val multi: Boolean, val small: Boolean, val large: Boolean = false) {
         EN_SMALL("en-q5", "ggml-base.en-q5_1.bin", "$HF/ggml-base.en-q5_1.bin", 59_721_011L,
             "4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f", "Voice: English",
             "Smaller and faster. Whisper base by OpenAI, MIT.", multi = false, small = true),
@@ -41,7 +41,12 @@ object VoiceModels {
             "Spanish, French, German and more. Smaller and faster.", multi = true, small = true),
         MULTI("multi", "ggml-base.bin", "$HF/ggml-base.bin", 147_951_465L,
             "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe", "Voice: other languages",
-            "Spanish, French, German and more in one file.", multi = true, small = false);
+            "Spanish, French, German and more in one file.", multi = true, small = false),
+        // FORK: Whisper large-v3 turbo, q5_0 (ggerganov/whisper.cpp at the pinned commit; size and sha256 from its LFS pointer): the most
+        // exact of the files, for German and the other languages; slower than base and about 4x its memory
+        MULTI_LARGE("multi-turbo", "ggml-large-v3-turbo-q5_0.bin", "$HF/ggml-large-v3-turbo-q5_0.bin", 574_041_195L,
+            "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2", "Voice: other languages (best)",
+            "Whisper large-v3 turbo. Most exact (German), slower, needs about 1 GB of free memory.", multi = true, small = false, large = true);
         /** its size in the add-on rows' megabytes (1 MB = 1,000,000 bytes, rounded up): 60 / 148 */
         val mb: Int get() = ((bytes + 999_999) / 1_000_000).toInt()
         /** "148 MB" */
@@ -49,7 +54,7 @@ object VoiceModels {
         /** its Add-ons row: "Voice: English · 60 MB" */
         val label: String get() = "$title · $size"
         /** its row on the voice sheet's list (the sheet's title says "Download voice"): "English · 60 MB", "Other languages · 148 MB" */
-        val choice: String get() = (if (multi) "Other languages" else "English") + " · $size"
+        val choice: String get() = (if (multi) "Other languages" else "English") + (if (large) " (best)" else "") + " · $size"
     }
 
     /** the [multi] kind's files, the bigger first (the one that listens when both are in) */

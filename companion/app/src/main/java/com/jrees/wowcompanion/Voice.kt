@@ -212,7 +212,8 @@ object Voice {
      * has libdsfwhisper.so, [en] / [multi] = that model file is on disk and checked ([VoiceModels.ready]); [enSmall] / [multiSmall] = the
      * quantised one of that kind (the user's pick 2026-11-16 "Offer both")
      */
-    data class WhisperOn(val lib: Boolean, val en: Boolean, val multi: Boolean, val enSmall: Boolean = false, val multiSmall: Boolean = false)
+    data class WhisperOn(val lib: Boolean, val en: Boolean, val multi: Boolean, val enSmall: Boolean = false, val multiSmall: Boolean = false,
+                         val multiLarge: Boolean = false)
 
     /**
      * Which model and language offline voice uses for the app's language [appLang] ("en", "es", "fr") and the Voice language pick [voice]
@@ -228,7 +229,9 @@ object Voice {
         if (w == null || !w.lib) return null
         val lang = VoiceLanguage.resolve(voice, appLang)
         val en = if (w.en) VoiceModels.Model.EN else if (w.enSmall) VoiceModels.Model.EN_SMALL else null
-        val multi = if (w.multi) VoiceModels.Model.MULTI else if (w.multiSmall) VoiceModels.Model.MULTI_SMALL else null
+        // FORK: the largest multilingual file on disk listens (large-v3 turbo > medium-sized > small)
+        val multi = if (w.multiLarge) VoiceModels.Model.MULTI_LARGE else if (w.multi) VoiceModels.Model.MULTI
+            else if (w.multiSmall) VoiceModels.Model.MULTI_SMALL else null
         if (VoiceLanguage.sanitize(voice) != VoiceLanguage.SAME) return when {
             lang == "en" -> (en ?: multi)?.let { it to "en" }
             else -> multi?.let { it to lang }
@@ -247,7 +250,7 @@ object Voice {
      */
     fun needsMulti(appLang: String, w: WhisperOn?, voice: String = VoiceLanguage.SAME): Boolean =
         w != null && w.lib && VoiceLanguage.sanitize(voice) != VoiceLanguage.SAME && VoiceLanguage.needsMulti(voice, appLang) &&
-            !w.multi && !w.multiSmall && (w.en || w.enSmall)
+            !w.multi && !w.multiSmall && !w.multiLarge && (w.en || w.enSmall)
 
     /** the model the voice sheet offers to download for [appLang] and [voice]: the small one, multilingual for a language that is not English */
     fun wantedModel(appLang: String, voice: String = VoiceLanguage.SAME): VoiceModels.Model =

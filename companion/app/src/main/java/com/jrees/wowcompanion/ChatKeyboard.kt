@@ -70,6 +70,20 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
     private val places = ArrayList<Triple<Int, Int, RectF>>()   // row, col, rect: the keys as last drawn
     private val fill = Paint().apply { style = Paint.Style.FILL }
 
+    /**
+     * FORK: the suggestion strip over the keys (Settings > General > Voice typing > Suggestions): only a board that writes a message opts
+     * in (the chat's); the strip takes [STRIP_H] from the keys' height, a finger on a word or A on it takes the word
+     */
+    var suggestOn = false
+        set(v) {
+            if (field == v) return
+            field = v
+            keys.suggester = if (v) ({ t: String -> Suggest.forText(t) }) else null
+            requestLayout(); invalidate()
+        }
+    private val stripPlaces = ArrayList<Pair<Int, RectF>>()
+    private fun stripExtra(k: Float) = if (suggestOn) (STRIP_H + GAP) * k else 0f
+
     /** the keyboard opens: the cursor on the first letter, shift off */
     fun open() { keys.open(); invalidate() }
 
@@ -130,7 +144,7 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
     // 4 px over the bottom; inside it 16 px, rows of 92 px keys 8 px apart, ten units across; the hints under the keys
     override fun onMeasure(wSpec: Int, hSpec: Int) {
         measuredScale = scale
-        setMeasuredDimension(MeasureSpec.getSize(wSpec), resolveSize(fullHeight(measuredScale), hSpec))
+        setMeasuredDimension(MeasureSpec.getSize(wSpec), resolveSize(fullHeight(measuredScale) + stripExtra(measuredScale).toInt(), hSpec))
     }
 
     private val board = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -142,13 +156,13 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
         if (scaleOverride == null && isAttachedToWindow && kotlin.math.abs(k - measuredScale) > 0.001f) requestLayout()
         // drawn at the FULL height even while the room gives it less: sliding in, its top edge carries the keys up
         // from below (the room clips the rest), so the board slides and is never squeezed
-        val kb = RectF(6f, 0f, width - 6f, (if (fillHeight > 0) fillHeight else fullHeight(k)) - 4f)
+        val kb = RectF(6f, 0f, width - 6f, (if (fillHeight > 0) fillHeight else fullHeight(k) + stripExtra(k).toInt()) - 4f)
         // look 1, the user's pick: the keys on a black board with a thin bronze-brown edge (UI Art's sample)
         board.style = Paint.Style.FILL; board.color = Color.rgb(6, 6, 6)
         c.drawRoundRect(kb, 14f, 14f, board)
         board.style = Paint.Style.STROKE; board.strokeWidth = 2f; board.color = Color.rgb(60, 52, 40)
         c.drawRoundRect(kb, 14f, 14f, board)
-        places.clear()
+        places.clear(); stripPlaces.clear()
         // the voice page in the Thor's frame, scaled to the board (its touch boxes then put on the board as drawn: [voiceHitsScaled])
         sheet?.let {
             c.save(); c.scale(k, k)
@@ -158,9 +172,11 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
             return
         }
         val rows = keys.layoutRows()
-        val g = keyMetrics(kb.width(), kb.height(), rows.size, k)
+        // FORK: the suggestion strip (when on) takes its height from the keys'
+        val g = keyMetrics(kb.width(), kb.height() - stripExtra(k), rows.size, k)
         val unit = g[0]; val keyH = g[1]; val inset = g[2]; val gap = g[3]
         var y = kb.top + inset
+        if (suggestOn) { drawStrip(c, kb, y, inset, k); y += stripExtra(k) }
         for ((ri, row) in rows.withIndex()) {
             var x = kb.left + inset + row.lead * (unit + gap)          // the A-L row half a key in
             for ((ci, cell) in row.cells.withIndex()) {
@@ -177,6 +193,24 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
         // what the controller does here, the game's way: glyph and word, under the keys
         // NO glyph legend under the keys (the user, LATER 27: "the button glyph legend at the bottom of the keyboard is redundant
         // and should be removed"): the keys that have a button carry its glyph themselves
+    }
+
+    /**
+     * FORK: the strip's words (the three the list offers for the text, one per third of the width; the cursor's gold box on the one the
+     * controller is on). Nothing to offer = an empty strip, the keys keep their place.
+     */
+    private fun drawStrip(c: Canvas, kb: RectF, top: Float, inset: Float, k: Float) {
+        val words = keys.suggestionsFor(text())
+        val gap = GAP * k
+        val total = kb.width() - inset * 2
+        val slot = (total - 2 * gap) / ChatKeys.STRIP_SLOTS
+        for ((i, w) in words.withIndex()) {
+            val x = kb.left + inset + i * (slot + gap)
+            val r = RectF(x, top, x + slot, top + STRIP_H * k)
+            UiKit.keyCap(c, r, w, LOOK, mod = true)
+            stripPlaces += i to r
+            if (keys.onStrip && keys.stripCol == i) UiKit.focus(c, r)
+        }
     }
 
     /** the pressed key's bubble over it (see [popFor]), inside the board [kb] */
@@ -241,6 +275,10 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
     override fun onTouchEvent(e: MotionEvent): Boolean {
         if (sheet != null) { voiceTouch(e); return true }
         val at = places.firstOrNull { it.third.contains(e.x, e.y) }
+        // FORK: a finger lifted on a strip word takes it
+        if (e.actionMasked == MotionEvent.ACTION_UP) stripPlaces.firstOrNull { it.second.contains(e.x, e.y) }?.let { (i, _) ->
+            apply(keys.pickSuggestion(i, text())); return true
+        }
         when (e.actionMasked) {
             // the finger's key pops up while held, follows the finger across the keys, and types on the lift (as before)
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
@@ -912,6 +950,8 @@ class ChatKeyboard(c: Context, swap: Boolean = true, signIn: Boolean = false, vo
         const val KEY_H = 92f
         const val GAP = 8f
         const val INSET = 16f
+        /** FORK: the suggestion strip's height (the keys give it up when it is on) */
+        const val STRIP_H = 72f
         /** the key pop-up: how long A's shows (a finger's shows while held) */
         const val POP_SHOW_MS = 160L
         /** one ripple's way out from the medallion */

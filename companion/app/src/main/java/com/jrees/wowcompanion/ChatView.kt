@@ -766,7 +766,7 @@ class ChatView(c: Context, @Suppress("UNUSED_PARAMETER") onSend: (String) -> Uni
         if (to == board) return
         val was = board
         board = to
-        if (to == Board.KEYS) { keyboard.sendEnabled = sendEnabled; keyboard.open() }
+        if (to == Board.KEYS) { keyboard.sendEnabled = sendEnabled; keyboard.suggestOn = Suggest.on() && Suggest.ensure(context); keyboard.open() }
         if (to != Board.NONE) { quick.visibility = if (to == Board.QUICK) View.VISIBLE else View.GONE
                                 keyboard.visibility = if (to == Board.KEYS) View.VISIBLE else View.GONE }
         // the bar's Send: quick chat's (the keyboard has its own Send key)

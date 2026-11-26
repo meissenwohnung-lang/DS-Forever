@@ -36,7 +36,7 @@ package com.jrees.wowcompanion
  *
  * APP PREFERENCES (SharedPreferences files)
  *  settings     SETTINGS lighterMode, lowMemGraphics, vramCap (#56), pageOut, homeMapFull, homeMapTerrain, indoorBuild, swapScreens, voiceTyping,
- *                        voiceLanguage (#477), minimapYd, minimapIndoorYd, worldMapFog, avoidDanger, chatDefaultInput, theme,
+ *                        voiceLanguage (#477), keySuggest, minimapYd, minimapIndoorYd, worldMapFog, avoidDanger, chatDefaultInput, theme,
  *                        graphicsDriver (an opt-in test driver: back to Recommended)
  *               NEVER    browserLogin, windowsId (+ windowsIdRan*), graphicsDriverRan, gameAccountAsk, gameAccountPick, gameAccountHandover (the sign-in), polestarGuide, polestarOffBoot,
  *                        questTracking* (Polestar), theme_custom (the player's own made theme: Classic comes back, the made one stays),
@@ -167,7 +167,7 @@ object ResetPlan {
 
     val PREFS: List<PrefKey> = listOf(
         exact("settings", Kind.SETTINGS, "lighterMode", "lowMemGraphics", "vramCap", "pageOut", "homeMapFull", "homeMapTerrain", "indoorBuild", "swapScreens",
-            "voiceTyping", "voiceLanguage", "minimapYd", "minimapIndoorYd", "worldMapFog", "avoidDanger", "chatDefaultInput", "theme",
+            "voiceTyping", "voiceLanguage", "keySuggest", "minimapYd", "minimapIndoorYd", "worldMapFog", "avoidDanger", "chatDefaultInput", "theme",
             // 2026-11-23: an opt-in test graphics driver goes back to Recommended with the other settings
             GraphicsDriver.KEY),
         exact("settings", null, "browserLogin", "windowsId", "windowsIdRan", "windowsIdRanAt", "windowsIdRanOk", GraphicsDriver.KEY_RAN,

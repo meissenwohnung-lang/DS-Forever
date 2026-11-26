@@ -193,7 +193,8 @@ class WhisperEngine(context: Context,
         /** offline voice's state now: the library and which model files are ready */
         fun on(): Voice.WhisperOn = Voice.WhisperOn(WhisperNative.available,
             VoiceModels.ready(VoiceModels.Model.EN), VoiceModels.ready(VoiceModels.Model.MULTI),
-            VoiceModels.ready(VoiceModels.Model.EN_SMALL), VoiceModels.ready(VoiceModels.Model.MULTI_SMALL))
+            VoiceModels.ready(VoiceModels.Model.EN_SMALL), VoiceModels.ready(VoiceModels.Model.MULTI_SMALL),
+            VoiceModels.ready(VoiceModels.Model.MULTI_LARGE))
 
         // ---- THE LOADED MODEL (one, shared by every board; only the work thread loads, runs and frees it)
         /** memory work #56 (D4): the sessions under way, which hold a free back until their words are out ([VoiceHold]) */
